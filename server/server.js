@@ -1,20 +1,22 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
-import { clerkMiddleware, requireAuth } from '@clerk/express'
+import {clerkMiddleware} from '@clerk/express'
 import aiRouter from './routes/aiRoutes.js';
 import connectCloudinary from './configs/cloudinary.js';
 import userRouter from './routes/userRoutes.js';
 
 const app = express();//initialize express app
 await connectCloudinary()
-app.use(cors());//middleware to enable CORS
+app.use(cors({
+    origin: 'http://localhost:5173', // Your frontend URL
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));//middleware to enable CORS
 app.use(express.json());//middleware to parse json request bodies
-app.use(clerkMiddleware());//middleware to integrate Clerk authentication
+app.use(clerkMiddleware({clockSkewInMs: 60000}));//middleware to integrate Clerk authentication
 
 app.get('/', (req, res)=>res.send('Server is livee'));//basic route to test server
-
-app.use(requireAuth());
 
 app.use('/api/ai', aiRouter)
 app.use('/api/user', userRouter)

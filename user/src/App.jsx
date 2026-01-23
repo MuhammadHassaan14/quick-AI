@@ -13,10 +13,6 @@ import Dashboard from './pages/Dashboard'
 import { useEffect } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 const App = () => {
-  const {getToken} = useAuth()
-  useEffect(()=>{
-    getToken().then((token)=>console.log(token));
-  }, [])
   return (
     <div>
       <Routes>

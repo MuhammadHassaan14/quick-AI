@@ -1,5 +1,5 @@
-import OpenAI from "openai";
-import sql  from "../configs/db.js";
+import { GoogleGenAI } from "@google/genai";
+import sql from "../configs/db.js";
 import { clerkClient } from "@clerk/express";
 import {v2 as cloudinary} from 'cloudinary';
 import fs from "fs";
@@ -7,31 +7,25 @@ import * as pdfParse from 'pdf-parse';
 import axios from "axios";
 import FormData from "form-data";
 
-const AI = new OpenAI({
+const AI = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
-    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    vertexai: false
 });
 
 export const generateArticle = async (req, res) => {
     try{
-        const {userId} = req.auth();
-        const {prompt, length} = req.body;
+        const userId = req.userId;
+        const {prompt} = req.body;
         const plan = req.plan;
         const free_usage = req.free_usage;
         if(plan !== 'premium' && free_usage >= 10){
             return res.json({success: false, message: 'Free usage limit reached. Please upgrade to premium.'});
         }
-        const response = await AI.chat.completions.create({
+        const response = await AI.models.generateContent({
             model: "gemini-3-flash-preview",
-            messages: [{
-                    role: "user",
-                    content: prompt,
-                },
-            ],
-            temperature: 0.7,
-            max_tokens: length
+            contents: prompt,
         });
-        const content = response.choices[0].message.content;
+        const content = response.text;
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, ${prompt}, ${content}, 'article')`;
         if(plan !== 'premium'){
             await clerkClient.users.updateUserMetadata(userId, {
@@ -44,31 +38,28 @@ export const generateArticle = async (req, res) => {
     }   
     catch(error){
         console.log(error.message)
-        res.json({success: false, message: error.message})
+        res.status(500).json({success: false, message: userMessage})
     }
 }
 
 export const generateBlogTitle = async (req, res) => {
     try{
-        const {userId} = req.auth();
+        const userId = req.userId;
         const {prompt} = req.body;
         const plan = req.plan;
         const free_usage = req.free_usage;
+
         if(plan !== 'premium' && free_usage >= 10){
             return res.json({success: false, message: 'Free usage limit reached. Please upgrade to premium.'});
         }
-        const response = await AI.chat.completions.create({
+        const response = await AI.models.generateContent({
             model: "gemini-3-flash-preview",
-            messages: [{
-                    role: "user",
-                    content: prompt,
-                },
-            ],
-            temperature: 0.7,
-            max_tokens: 100
+            contents: prompt,
         });
-        const content = response.choices[0].message.content;
+        
+        const content = response.text;
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, ${prompt}, ${content}, 'blog-title')`;
+        
         if(plan !== 'premium'){
             await clerkClient.users.updateUserMetadata(userId, {
                 privateMetadata:{
@@ -76,6 +67,7 @@ export const generateBlogTitle = async (req, res) => {
                 }
             })
         }
+        
         res.json({success: true, content})
     }   
     catch(error){
@@ -86,7 +78,7 @@ export const generateBlogTitle = async (req, res) => {
 
 export const generateImage = async (req, res) => {
     try{
-        const {userId} = req.auth();
+        const userId = req.userId;
         const {prompt, publish} = req.body;
         const plan = req.plan;
         if(plan !== 'premium'){
@@ -99,7 +91,7 @@ export const generateImage = async (req, res) => {
             responseType: "arraybuffer",
         })
         const base64Image = `data:image/png;base64,${Buffer.from(data, 'binary').toString('base64')}`;
-        const {secure_url} = await cloudinary.uploader.upload(base64Image) //live url for our uploaded image
+        const {secure_url} = await cloudinary.uploader.upload(base64Image)
         
         await sql `INSERT INTO creations (user_id, prompt, content, type, publish) VALUES (${userId}, ${prompt}, ${secure_url}, 'image', ${publish ?? false})`;
         res.json({success: true, content: secure_url})
@@ -112,7 +104,7 @@ export const generateImage = async (req, res) => {
 
 export const removeImageBackground = async (req, res) => {
     try{
-        const {userId} = req.auth();
+        const userId = req.userId;
         const image = req.file;
         const plan = req.plan;
         if(plan !== 'premium'){
@@ -139,9 +131,9 @@ export const removeImageBackground = async (req, res) => {
 
 export const removeImageObject = async (req, res) => {
     try{
-        const {userId} = req.auth();
+        const userId = req.userId;
         const {object} = req.body;
-        const {image} = req.file;
+        const image = req.file;
         const plan = req.plan;
         if(plan !== 'premium'){
             return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
@@ -162,7 +154,7 @@ export const removeImageObject = async (req, res) => {
 
 export const resumeReview = async (req, res) => {
     try{
-        const {userId} = req.auth();
+        const userId = req.userId;
         const resume = req.file;
         const plan = req.plan;
         if(plan !== 'premium'){
@@ -173,18 +165,15 @@ export const resumeReview = async (req, res) => {
         }
         const dataBuffer = fs.readFileSync(resume.path)
         const pdfData = await pdfParse.default(dataBuffer)
-        const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`
-        const response = await AI.chat.completions.create({
+        const promptText = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`
+        
+        const response = await AI.models.generateContent({
             model: "gemini-3-flash-preview",
-            messages: [{
-                    role: "user",
-                    content: prompt,
-                },
-            ],
-            temperature: 0.7,
-            max_tokens: 1000
+            contents: promptText,
         });
-        const content = response.choices[0].message.content;
+        
+        const content = response.text;
+        
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review')`;
         res.json({success: true, content})
     }   
