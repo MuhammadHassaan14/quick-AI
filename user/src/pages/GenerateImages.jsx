@@ -1,7 +1,6 @@
 import React, {useState} from 'react'
 import { Sparkles, Image } from 'lucide-react'
 import toast from 'react-hot-toast'
-import Markdown from 'react-markdown'
 import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios'
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
@@ -34,7 +33,7 @@ const GenerateImages = () => {
         console.log("Sending request:", {prompt, publish}) // Debug log
         const {data} = await axios.post('/api/ai/generate-image', {prompt, publish}, {headers: {Authorization: `Bearer ${token}`}, timeout: 70000})
         toast.dismiss('generating')
-        console.log("Response received:", data) // Debug log
+        console.log("Response received:", data)//debug log
         if(data.success){
           setContent(data.content)
           toast.success("Image generated successfully!")
