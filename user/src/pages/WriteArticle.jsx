@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
 import { Sparkles, Edit } from 'lucide-react'
 import axios from 'axios'
+import Markdown from 'react-markdown'
 
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
@@ -69,7 +70,7 @@ const WriteArticle = () => {
         <br/>
         <button disabled={loading} className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#226BFF] to-[#65ADFF] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer'>
           {
-            loading ? <span className='w-4 h-4 my-1 rounded-full borded-2 border-t-transparent animate-spin'></span>
+            loading ? <span className='w-4 h-4 my-1 rounded-full border-2 border-t-transparent animate-spin'></span>
             : <Edit className='w-5'></Edit>
           }
           Generate Article
@@ -90,7 +91,9 @@ const WriteArticle = () => {
           </div>
         ) : (
           <div className='mt-3 h-full overflow-y-scroll text-sm text-slate-600'>
-            <div>{content}</div>
+            <div className='reset-tw'>
+              <Markdown>{content}</Markdown>
+            </div>
           </div> 
         )}
       </div>
