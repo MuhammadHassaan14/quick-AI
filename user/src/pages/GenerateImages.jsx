@@ -22,19 +22,28 @@ const GenerateImages = () => {
         toast.error("Please sign in first")
         return
       }
+      if (!input.trim()) {
+        toast.error("Please describe your image")
+        return
+      }
       try {
         setLoading(true)
+        toast.loading("Generating image... This may take 30-60 seconds", {id: 'generating'})
         const prompt = `Generate an image of ${input} in the style ${selectedStyle}`
         const token = await getToken()
         console.log("Sending request:", {prompt, publish}) // Debug log
-        const {data} = await axios.post('/api/ai/generate-image', {prompt, publish}, {headers: {Authorization: `Bearer ${token}`}})
+        const {data} = await axios.post('/api/ai/generate-image', {prompt, publish}, {headers: {Authorization: `Bearer ${token}`}, timeout: 70000})
+        toast.dismiss('generating')
         console.log("Response received:", data) // Debug log
         if(data.success){
           setContent(data.content)
+          toast.success("Image generated successfully!")
         }else{
           toast.error(data.message)
         }
       } catch (error) {
+        toast.dismiss('generating')
+        console.error("Error:", error)
         toast.error(error.message)
       }
       setLoading(false)

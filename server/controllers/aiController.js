@@ -81,24 +81,55 @@ export const generateImage = async (req, res) => {
         const userId = req.userId;
         const {prompt, publish} = req.body;
         const plan = req.plan;
+        
         if(plan !== 'premium'){
             return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
         }
-        const formData = new FormData()
-        formData.append('prompt', prompt)
-        const {data} = await axios.post("https://clipdrop-api.co/text-to-image/v1", formData, {
-            headers: {'x-api-key': process.env.CLIPDROP_API_KEY,},
-            responseType: "arraybuffer",
-        })
-        const base64Image = `data:image/png;base64,${Buffer.from(data, 'binary').toString('base64')}`;
-        const {secure_url} = await cloudinary.uploader.upload(base64Image)
-        
+        console.log("Generating image...");
+        console.log("Prompt:", prompt);
+        //using Pollinations.AI with better timeout
+        const encodedPrompt = encodeURIComponent(prompt);
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
+        console.log("Fetching image from Pollinations AI...");        
+        //fetching the generated image with longer timeout
+        const response = await axios.get(imageUrl, {
+            responseType: 'arraybuffer',
+            timeout: 60000, // Increased to 60 seconds
+            maxRedirects: 5
+        });
+        console.log("Image received, uploading to Cloudinary...");
+        if (!process.env.CLOUDINARY_API_SECRET) {//cloudinary configured or not
+            console.error("Cloudinary API secret is missing!");
+            return res.status(500).json({
+                success: false, 
+                message: "Server configuration error. Please contact support."
+            });
+        }
+        //convert to base64 and upload to Cloudinary
+        const base64Image = `data:image/png;base64,${Buffer.from(response.data, 'binary').toString('base64')}`;
+        const uploadResult = await cloudinary.uploader.upload(base64Image, {
+            folder: 'ai-generated-images',
+            resource_type: 'image'
+        });
+        const secure_url = uploadResult.secure_url;
+        console.log("Image uploaded successfully:", secure_url);
         await sql `INSERT INTO creations (user_id, prompt, content, type, publish) VALUES (${userId}, ${prompt}, ${secure_url}, 'image', ${publish ?? false})`;
         res.json({success: true, content: secure_url})
     }   
     catch(error){
-        console.log(error.message)
-        res.json({success: false, message: error.message})
+        console.error("Image generation error:", error.message);
+        
+        let userMessage = "Failed to generate image. Please try again.";
+        
+        if(error.message.includes('timeout')){
+            userMessage = "Image generation is taking too long. Please try a simpler prompt or try again.";
+        } else if(error.message.includes('api_secret')){
+            userMessage = "Server configuration error. Image upload failed.";
+        } else if(error.response?.status === 503){
+            userMessage = "AI service is temporarily unavailable. Please try again in a moment.";
+        }
+        
+        res.status(500).json({success: false, message: userMessage})
     }
 }
 
