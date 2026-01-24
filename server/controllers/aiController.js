@@ -3,9 +3,8 @@ import sql from "../configs/db.js";
 import { clerkClient } from "@clerk/express";
 import {v2 as cloudinary} from 'cloudinary';
 import fs from "fs";
-import * as pdfParse from 'pdf-parse';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import axios from "axios";
-import FormData from "form-data";
 
 const AI = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
@@ -188,15 +187,39 @@ export const resumeReview = async (req, res) => {
         const userId = req.userId;
         const resume = req.file;
         const plan = req.plan;
+        console.log("Resume review started");
+        console.log("File received:", resume?.originalname);
         if(plan !== 'premium'){
             return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
+        }
+        if(!resume){
+            return res.json({success: false, message: "No file uploaded."});
         }
         if(resume.size > 5 * 1024 * 1024){
             return res.json({success: false, message: "Resume file size exceeds allowed size (5MB)."})
         }
+        console.log("Reading PDF...");
         const dataBuffer = fs.readFileSync(resume.path)
-        const pdfData = await pdfParse.default(dataBuffer)
-        const promptText = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`
+        console.log("Parsing PDF with pdfjs...");
+        const loadingTask = pdfjsLib.getDocument({
+            data: new Uint8Array(dataBuffer),
+            useSystemFonts: true
+        });
+        const pdfDocument = await loadingTask.promise;
+        const numPages = pdfDocument.numPages;
+        console.log(`PDF has ${numPages} pages`);
+        let fullText = '';
+        for (let i = 1; i <= numPages; i++) {
+            const page = await pdfDocument.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n';
+        }
+        console.log("PDF parsed, text length:", fullText.length);
+        if(!fullText.trim()){
+            return res.json({success: false, message: "Could not extract text from PDF. Make sure it's a text-based PDF."});
+        }
+        const promptText = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${fullText}`
         
         const response = await AI.models.generateContent({
             model: "gemini-3-flash-preview",
@@ -204,8 +227,13 @@ export const resumeReview = async (req, res) => {
         });
         
         const content = response.text;
-        
+        console.log("Review generated successfully");
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review')`;
+        try {
+            fs.unlinkSync(resume.path);
+        } catch(e) {
+            console.log("Could not delete temp file:", e.message);
+        }
         res.json({success: true, content})
     }   
     catch(error){
