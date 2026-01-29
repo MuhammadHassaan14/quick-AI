@@ -9,7 +9,7 @@ import userRouter from './routes/userRoutes.js';
 const app = express();//initialize express app
 await connectCloudinary()
 app.use(cors({
-    origin: 'http://localhost:5173', // Your frontend URL
+    origin: 'http://localhost:5173',
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
 }));//middleware to enable CORS

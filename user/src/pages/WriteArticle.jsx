@@ -1,4 +1,4 @@
-import React, {useState} from 'react'
+import {useState} from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
 import { Sparkles, Edit } from 'lucide-react'

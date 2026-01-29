@@ -1,4 +1,4 @@
-import React, {useState} from 'react'
+import {useState} from 'react'
 import { Sparkles, Hash } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Markdown from 'react-markdown'

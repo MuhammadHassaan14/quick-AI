@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react'
+import {useEffect, useState} from 'react'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
 import { Heart } from 'lucide-react'

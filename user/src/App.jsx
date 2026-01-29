@@ -10,8 +10,6 @@ import ReviewResume from './pages/ReviewResume.jsx'
 import WriteArticle from './pages/WriteArticle.jsx'
 import Layout from './pages/Layout'
 import Dashboard from './pages/Dashboard'
-import { useEffect } from 'react'
-import { useAuth } from '@clerk/clerk-react'
 const App = () => {
   return (
     <div>
