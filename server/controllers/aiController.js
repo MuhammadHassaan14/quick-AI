@@ -2,13 +2,12 @@ import { GoogleGenAI } from "@google/genai";
 import sql from "../configs/db.js";
 import { clerkClient } from "@clerk/express";
 import {v2 as cloudinary} from 'cloudinary';
-import fs from "fs";
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { PDFParse } from 'pdf-parse';
+import { CanvasFactory } from 'pdf-parse/worker'; // Required for some environments
 import axios from "axios";
 
 const AI = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
-    vertexai: false
 });
 
 export const generateArticle = async (req, res) => {
@@ -116,7 +115,7 @@ export const generateImage = async (req, res) => {
         res.json({success: true, content: secure_url})
     }   
     catch(error){
-        console.error("Image generation error:", error.message);
+        console.error("Image generation error:", error);
         
         let userMessage = "Failed to generate image. Please try again.";
         
@@ -126,6 +125,8 @@ export const generateImage = async (req, res) => {
             userMessage = "Server configuration error. Image upload failed.";
         } else if(error.response?.status === 503){
             userMessage = "AI service is temporarily unavailable. Please try again in a moment.";
+        } else if(error.response?.status === 502){
+            userMessage = "Image generation service is currently unavailable. Please try again later.";
         }
         
         res.status(500).json({success: false, message: userMessage})
@@ -198,23 +199,11 @@ export const resumeReview = async (req, res) => {
         if(resume.size > 5 * 1024 * 1024){
             return res.json({success: false, message: "Resume file size exceeds allowed size (5MB)."})
         }
-        console.log("Reading PDF...");
-        const dataBuffer = fs.readFileSync(resume.path)
-        console.log("Parsing PDF with pdfjs...");
-        const loadingTask = pdfjsLib.getDocument({
-            data: new Uint8Array(dataBuffer),
-            useSystemFonts: true
-        });
-        const pdfDocument = await loadingTask.promise;
-        const numPages = pdfDocument.numPages;
-        console.log(`PDF has ${numPages} pages`);
-        let fullText = '';
-        for (let i = 1; i <= numPages; i++) {
-            const page = await pdfDocument.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
-            fullText += pageText + '\n';
-        }
+        console.log("Parsing PDF with pdf-parse...");
+        const parser = new PDFParse({ data: resume.buffer, CanvasFactory: CanvasFactory });
+        const result = await parser.getText();
+        const fullText = result.text;
+        await parser.destroy(); // Clean up resources
         console.log("PDF parsed, text length:", fullText.length);
         if(!fullText.trim()){
             return res.json({success: false, message: "Could not extract text from PDF. Make sure it's a text-based PDF."});
@@ -229,11 +218,7 @@ export const resumeReview = async (req, res) => {
         const content = response.text;
         console.log("Review generated successfully");
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review')`;
-        try {
-            fs.unlinkSync(resume.path);
-        } catch(e) {
-            console.log("Could not delete temp file:", e.message);
-        }
+        
         res.json({success: true, content})
     }   
     catch(error){
