@@ -23,7 +23,7 @@
     "express": "^5.2.1",
     "multer": "^2.0.2",
     "openai": "^6.16.0",
-    "pdfjs-dist": "^5.4.530"
+    "pdfjs-dist": "^5.4.624"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
