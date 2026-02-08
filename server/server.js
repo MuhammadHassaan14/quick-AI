@@ -8,10 +8,21 @@ import userRouter from './routes/userRoutes.js';
 
 const app = express();//initialize express app
 await connectCloudinary()
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://hypernova-ai-frontend.vercel.app"
+];
 app.use(cors({
-    origin: 'http://localhost:5173',
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization']
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));//middleware to enable CORS
 app.use(express.json());//middleware to parse json request bodies
 app.use(clerkMiddleware({clockSkewInMs: 60000}));//middleware to integrate Clerk authentication
