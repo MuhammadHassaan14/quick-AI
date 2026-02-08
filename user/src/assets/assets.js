@@ -1,4 +1,4 @@
-import logo from "./logo.svg";
+import newlogo from "./newlogo.svg";
 import gradientBackground from "./gradientBackground.png";
 import user_group from "./user_group.png";
 import star_icon from "./star_icon.svg";
@@ -8,7 +8,7 @@ import arrow_icon from "./arrow_icon.svg";
 import { SquarePen, Hash, Image, Eraser, Scissors, FileText } from 'lucide-react'
 
 export const assets = {
-    logo,
+    newlogo,
     gradientBackground,
     user_group,
     star_icon,
