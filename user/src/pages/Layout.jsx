@@ -32,7 +32,7 @@ const Layout = () => {
           }
         </div>
       </nav>
-      <div className='flex flex-1 w-full h-[calc(100vh-64px)] overflow-hidden'>
+      <div className='relative flex flex-1 w-full overflow-hidden'>
         <Sidebar sidebar={sidebar} setSidebar={setSidebar}/>
         <div className='flex-1 bg-[#F4F7FB]'>
           <Outlet />
