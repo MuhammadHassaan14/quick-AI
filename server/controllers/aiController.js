@@ -3,11 +3,11 @@ import sql from "../configs/db.js";
 import { clerkClient } from "@clerk/express";
 import {v2 as cloudinary} from 'cloudinary';
 import { PDFParse } from 'pdf-parse';
-import { CanvasFactory } from 'pdf-parse/worker'; // Required for some environments
-import axios from "axios";
+import { CanvasFactory } from 'pdf-parse/worker';
 
 const AI = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
+    vertexai: false
 });
 
 export const generateArticle = async (req, res) => {
@@ -79,32 +79,34 @@ export const generateImage = async (req, res) => {
         const userId = req.userId;
         const {prompt, publish} = req.body;
         const plan = req.plan;
-        
-        if(plan !== 'premium'){
-            return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
-        }
+
+        //re-enable if allowing it for only premium users
+        // if(plan !== 'premium'){
+        //     return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
+        // }
         console.log("Generating image...");
         console.log("Prompt:", prompt);
-        //using Pollinations.AI with better timeout
-        const encodedPrompt = encodeURIComponent(prompt);
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
-        console.log("Fetching image from Pollinations AI...");        
-        //fetching the generated image with longer timeout
-        const response = await axios.get(imageUrl, {
-            responseType: 'arraybuffer',
-            timeout: 60000, // Increased to 60 seconds
-            maxRedirects: 5
-        });
-        console.log("Image received, uploading to Cloudinary...");
-        if (!process.env.CLOUDINARY_API_SECRET) {//cloudinary configured or not
-            console.error("Cloudinary API secret is missing!");
-            return res.status(500).json({
-                success: false, 
-                message: "Server configuration error. Please contact support."
-            });
+        const cfResponse = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ prompt }),
+            }
+        );
+
+        if(!cfResponse.ok){
+            const errText = await cfResponse.text();
+            console.error("Cloudflare AI error:", errText);
+            return res.status(500).json({success: false, message: "Failed to generate image. Please try again."});
         }
-        //convert to base64 and upload to Cloudinary
-        const base64Image = `data:image/png;base64,${Buffer.from(response.data, 'binary').toString('base64')}`;
+
+        const imageBuffer = Buffer.from(await cfResponse.arrayBuffer());
+        const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+        console.log("Image generated, uploading to Cloudinary...");
         const uploadResult = await cloudinary.uploader.upload(base64Image, {
             folder: 'ai-generated-images',
             resource_type: 'image'
@@ -113,22 +115,14 @@ export const generateImage = async (req, res) => {
         console.log("Image uploaded successfully:", secure_url);
         await sql `INSERT INTO creations (user_id, prompt, content, type, publish) VALUES (${userId}, ${prompt}, ${secure_url}, 'image', ${publish ?? false})`;
         res.json({success: true, content: secure_url})
-    }   
+    }
     catch(error){
-        console.error("Image generation error:", error);
-        
+        console.error("Image generation error:", error.message);
         let userMessage = "Failed to generate image. Please try again.";
-        
-        if(error.message.includes('timeout')){
-            userMessage = "Image generation is taking too long. Please try a simpler prompt or try again.";
-        } else if(error.message.includes('api_secret')){
+
+        if(error.message.includes('api_secret')){
             userMessage = "Server configuration error. Image upload failed.";
-        } else if(error.response?.status === 503){
-            userMessage = "AI service is temporarily unavailable. Please try again in a moment.";
-        } else if(error.response?.status === 502){
-            userMessage = "Image generation service is currently unavailable. Please try again later.";
         }
-        
         res.status(500).json({success: false, message: userMessage})
     }
 }
@@ -137,12 +131,15 @@ export const removeImageBackground = async (req, res) => {
     try{
         const userId = req.userId;
         const image = req.file;
+        if (!image) {
+            return res.status(400).json({ success: false, message: 'No image file provided.' });
+        }
         const plan = req.plan;
         if(plan !== 'premium'){
             return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
         }
         
-        const {secure_url} = await cloudinary.uploader.upload(image.path, {
+        const {secure_url} = await cloudinary.uploader.upload(`data:${image.mimetype};base64,${image.buffer.toString('base64')}`, {
             transformation: [
                 {
                     effect: 'background_removal',
@@ -165,11 +162,14 @@ export const removeImageObject = async (req, res) => {
         const userId = req.userId;
         const {object} = req.body;
         const image = req.file;
+        if (!image) {
+            return res.status(400).json({ success: false, message: 'No image file provided.' });
+        }
         const plan = req.plan;
         if(plan !== 'premium'){
             return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
         }
-        const {public_id} = await cloudinary.uploader.upload(image.path)
+        const {public_id} = await cloudinary.uploader.upload(`data:${image.mimetype};base64,${image.buffer.toString('base64')}`)
         const imageUrl = cloudinary.url(public_id, {
             transformation: [{effect: `gen_remove:${object}`}],
             resource_type: 'image'
