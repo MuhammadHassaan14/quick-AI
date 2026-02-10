@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import { Sparkles, Eraser, Download } from 'lucide-react'
 import axios from 'axios'
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import toast from 'react-hot-toast'
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
@@ -10,6 +10,12 @@ const RemoveBackground = () => {
     const [loading, setLoading] = useState(false)
     const [content, setContent] = useState('')
     const {getToken, isLoaded, isSignedIn} = useAuth()
+    const { user } = useUser()
+
+    const usage = user?.publicMetadata?.usage || {};
+    const imageEditUsage = usage.image_edit || 0;
+    const plan = user?.publicMetadata?.plan || 'free';
+    const isLimitReached = plan !== 'premium' && imageEditUsage >= 2;
 
     const downloadImage = async () => {
       try {
@@ -34,6 +40,10 @@ const RemoveBackground = () => {
       if (!isLoaded) return
       if (!isSignedIn) {
         toast.error("Please sign in first")
+        return
+      }
+      if (isLimitReached) {
+        toast.error("Free limit reached. Please upgrade to premium.")
         return
       }
       try {
@@ -70,11 +80,11 @@ const RemoveBackground = () => {
         <p className='mt-4 text-sm font-medium'>Category</p>
         <p className='text-xs text-gray-500 font-light mt-1'>Supports JPG, PNG, and other image formats</p>
         
-        <button disabled={loading} className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#F6AB41] to-[#FF4938] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer hover:shadow-lg transition-shadow disabled:opacity-50'>
+        <button disabled={loading || isLimitReached} className={`w-full flex justify-center items-center gap-2 text-white px-4 py-2 mt-6 text-sm rounded-lg transition-all ${isLimitReached ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-[#F6AB41] to-[#FF4938] cursor-pointer hover:shadow-lg'}`}>
           {
             loading ? <span className='w-4 h-4 my-1 rounded-full border-2 border-t-transparent animate-spin'></span> : <Eraser className='w-5'></Eraser>
           }
-          Remove Background
+          {isLimitReached ? 'Free Limit Reached' : 'Remove Background'}
         </button>
       </form>
       {/* right col */}

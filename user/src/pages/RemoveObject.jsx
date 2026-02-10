@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import { Sparkles, Scissors, Download } from 'lucide-react'
 import axios from 'axios'
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import toast from 'react-hot-toast'
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
@@ -11,6 +11,12 @@ const RemoveObject = () => {
     const [loading, setLoading] = useState(false)
     const [content, setContent] = useState('')
     const {getToken, isLoaded, isSignedIn} = useAuth()
+    const { user } = useUser()
+
+    const usage = user?.publicMetadata?.usage || {};
+    const imageEditUsage = usage.image_edit || 0;
+    const plan = user?.publicMetadata?.plan || 'free';
+    const isLimitReached = plan !== 'premium' && imageEditUsage >= 2;
 
     const downloadImage = async () => {
       try {
@@ -34,6 +40,10 @@ const RemoveObject = () => {
       if (!isLoaded) return
       if (!isSignedIn) {
         toast.error("Please sign in first")
+        return
+      }
+      if (isLimitReached) {
+        toast.error("Free limit reached. Please upgrade to premium.")
         return
       }
       try {
@@ -75,11 +85,11 @@ const RemoveObject = () => {
         <input onChange={(e)=>setInput(e.target.files[0])} type='file' accept='image/*' className='w-full p-2 mx-3 mt-2 outline-none text-sm rounded-md border border-gray-300 text-gray-600' required/>
         <p className='mt-6 text-sm font-medium'>Describe object name to remove</p>
         <textarea onChange={(e)=>setObject(e.target.value)} value={object} rows={4} className='w-full p-2 mx-3 mt-2 outline-none text-sm rounded-md border border-gray-300' placeholder='e.g. a watch, a spoon etc. (Only a single object)' required/>
-        <button disabled={loading} className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#417DF6] to-[#8E37EB] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer hover:shadow-lg transition-shadow disabled:opacity-50'>
+        <button disabled={loading || isLimitReached} className={`w-full flex justify-center items-center gap-2 text-white px-4 py-2 mt-6 text-sm rounded-lg transition-all ${isLimitReached ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-[#417DF6] to-[#8E37EB] cursor-pointer hover:shadow-lg'}`}>
           {
             loading ? <span className='w-4 h-4 my-1 rounded-full border-2 border-t-transparent animate-spin'></span> : <Scissors className='w-5'></Scissors>
           }
-          Remove Object
+          {isLimitReached ? 'Free Limit Reached' : 'Remove Object'}
         </button>
       </form>
       {/* right col */}

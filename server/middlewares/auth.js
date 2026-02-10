@@ -10,17 +10,25 @@ export const auth = async (req, res, next) => {
             });
         }
         const user = await clerkClient.users.getUser(userId);
-        const hasPremiumPlan = user.publicMetadata?.plan === 'premium' || 
-                               user.privateMetadata?.plan === 'premium';
-        if(!hasPremiumPlan && user.privateMetadata?.free_usage) {
-            req.free_usage = user.privateMetadata.free_usage;
-        } else if (!hasPremiumPlan) {
-            await clerkClient.users.updateUserMetadata(userId, {
-                privateMetadata: {free_usage: 0}
-            })
-            req.free_usage = 0;
+        const hasPremiumPlan = user.publicMetadata?.plan === 'premium';
+        const defaultUsage = {
+            article: 0,
+            image: 0,
+            image_edit: 0,
+            resume: 0
+        };
+
+        if(!hasPremiumPlan) {
+            if (user.publicMetadata?.usage) {
+                req.usage = { ...defaultUsage, ...user.publicMetadata.usage };
+            } else {
+                await clerkClient.users.updateUserMetadata(userId, {
+                    publicMetadata: { usage: defaultUsage }
+                });
+                req.usage = defaultUsage;
+            }
         } else {
-            req.free_usage = 0;//no free usage tracking required for premium users
+            req.usage = defaultUsage; 
         }
         
         req.plan = hasPremiumPlan ? 'premium' : 'free';

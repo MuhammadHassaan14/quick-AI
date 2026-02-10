@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import { Sparkles, Image, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import axios from 'axios'
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
@@ -13,6 +13,12 @@ const GenerateImages = () => {
     const [loading, setLoading] = useState(false)
     const [content, setContent] = useState('')
     const {getToken, isLoaded, isSignedIn} = useAuth()
+    const { user } = useUser()
+
+    const usage = user?.publicMetadata?.usage || {};
+    const imageUsage = usage.image || 0;
+    const plan = user?.publicMetadata?.plan || 'free';
+    const isLimitReached = plan !== 'premium' && imageUsage >= 3;
 
     const downloadImage = async () => {
       try {
@@ -36,6 +42,10 @@ const GenerateImages = () => {
       if (!isLoaded) return
       if (!isSignedIn) {
         toast.error("Please sign in first")
+        return
+      }
+      if (isLimitReached) {
+        toast.error("Free limit reached. Please upgrade to premium.")
         return
       }
       if (!input.trim()) {
@@ -89,9 +99,9 @@ const GenerateImages = () => {
           <p className='text-sm'>Make this image Public</p>
         </div>
         <br/>
-        <button disabled={loading} className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#00AD25] to-[#04FF50] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer hover:shadow-lg transition-shadow disabled:opacity-50'>
+        <button disabled={loading || isLimitReached} className={`w-full flex justify-center items-center gap-2 text-white px-4 py-2 mt-6 text-sm rounded-lg transition-all ${isLimitReached ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-[#00AD25] to-[#04FF50] cursor-pointer hover:shadow-lg'}`}>
           {loading ? <span className='w-4 h-4 my-1 rounded-full border-2 border-t-transparent animate-spin'></span> : <Image className='w-5'></Image>}
-          Generate Image
+          {isLimitReached ? 'Free Limit Reached' : 'Generate Image'}
         </button>
       </form>
       {/* right col */}

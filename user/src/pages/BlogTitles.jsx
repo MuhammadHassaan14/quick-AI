@@ -2,7 +2,7 @@ import {useState} from 'react'
 import { Sparkles, Hash } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Markdown from 'react-markdown'
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import axios from 'axios'
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
@@ -13,6 +13,7 @@ const BlogTitles = () => {
     const [loading, setLoading] = useState(false)
     const [content, setContent] = useState('')
     const {getToken, isLoaded, isSignedIn} = useAuth()
+    const { user } = useUser()
     
     const onSubmitHandler = async (e) => {
       e.preventDefault()

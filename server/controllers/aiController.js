@@ -15,9 +15,10 @@ export const generateArticle = async (req, res) => {
         const userId = req.userId;
         const {prompt} = req.body;
         const plan = req.plan;
-        const free_usage = req.free_usage;
-        if(plan !== 'premium' && free_usage >= 10){
-            return res.json({success: false, message: 'Free usage limit reached. Please upgrade to premium.'});
+        const usage = req.usage;
+
+        if(plan !== 'premium' && usage.article >= 2){
+            return res.json({success: false, message: 'Free article limit reached (2/month). Please upgrade to premium.'});
         }
         const response = await AI.models.generateContent({
             model: "gemini-3-flash-preview",
@@ -27,8 +28,8 @@ export const generateArticle = async (req, res) => {
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, ${prompt}, ${content}, 'article')`;
         if(plan !== 'premium'){
             await clerkClient.users.updateUserMetadata(userId, {
-                privateMetadata:{
-                    free_usage: free_usage + 1
+                publicMetadata:{
+                    usage: { ...usage, article: usage.article + 1 }
                 }
             })
         }
@@ -36,7 +37,7 @@ export const generateArticle = async (req, res) => {
     }   
     catch(error){
         console.log(error.message)
-        res.status(500).json({success: false, message: userMessage})
+        res.status(500).json({success: false, message: "Internal Server Error"})
     }
 }
 
@@ -44,12 +45,8 @@ export const generateBlogTitle = async (req, res) => {
     try{
         const userId = req.userId;
         const {prompt} = req.body;
-        const plan = req.plan;
-        const free_usage = req.free_usage;
-
-        if(plan !== 'premium' && free_usage >= 10){
-            return res.json({success: false, message: 'Free usage limit reached. Please upgrade to premium.'});
-        }
+        // Blog Titles are unlimited for free tier
+        
         const response = await AI.models.generateContent({
             model: "gemini-3-flash-preview",
             contents: prompt,
@@ -58,13 +55,7 @@ export const generateBlogTitle = async (req, res) => {
         const content = response.text;
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, ${prompt}, ${content}, 'blog-title')`;
         
-        if(plan !== 'premium'){
-            await clerkClient.users.updateUserMetadata(userId, {
-                privateMetadata:{
-                    free_usage: free_usage + 1
-                }
-            })
-        }
+        // No usage increment needed for unlimited feature
         
         res.json({success: true, content})
     }   
@@ -79,11 +70,12 @@ export const generateImage = async (req, res) => {
         const userId = req.userId;
         const {prompt, publish} = req.body;
         const plan = req.plan;
+        const usage = req.usage;
 
-        //re-enable if allowing it for only premium users
-        // if(plan !== 'premium'){
-        //     return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
-        // }
+        if(plan !== 'premium' && usage.image >= 3){
+            return res.json({success: false, message: 'Free image generation limit reached (3/month). Please upgrade to premium.'});
+        }
+
         console.log("Generating image...");
         console.log("Prompt:", prompt);
         const cfResponse = await fetch(
@@ -114,6 +106,15 @@ export const generateImage = async (req, res) => {
         const secure_url = uploadResult.secure_url;
         console.log("Image uploaded successfully:", secure_url);
         await sql `INSERT INTO creations (user_id, prompt, content, type, publish) VALUES (${userId}, ${prompt}, ${secure_url}, 'image', ${publish ?? false})`;
+        
+        if(plan !== 'premium'){
+            await clerkClient.users.updateUserMetadata(userId, {
+                publicMetadata:{
+                    usage: { ...usage, image: usage.image + 1 }
+                }
+            })
+        }
+
         res.json({success: true, content: secure_url})
     }
     catch(error){
@@ -135,8 +136,10 @@ export const removeImageBackground = async (req, res) => {
             return res.status(400).json({ success: false, message: 'No image file provided.' });
         }
         const plan = req.plan;
-        if(plan !== 'premium'){
-            return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
+        const usage = req.usage;
+
+        if(plan !== 'premium' && usage.image_edit >= 2){
+            return res.json({success: false, message: 'Free image editing limit reached (2/month). Please upgrade to premium.'});
         }
         
         const {secure_url} = await cloudinary.uploader.upload(`data:${image.mimetype};base64,${image.buffer.toString('base64')}`, {
@@ -149,6 +152,15 @@ export const removeImageBackground = async (req, res) => {
         })
         
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, 'Remove background from image', ${secure_url}, 'image')`;
+        
+        if(plan !== 'premium'){
+            await clerkClient.users.updateUserMetadata(userId, {
+                publicMetadata:{
+                    usage: { ...usage, image_edit: usage.image_edit + 1 }
+                }
+            })
+        }
+
         res.json({success: true, content: secure_url})
     }   
     catch(error){
@@ -166,15 +178,27 @@ export const removeImageObject = async (req, res) => {
             return res.status(400).json({ success: false, message: 'No image file provided.' });
         }
         const plan = req.plan;
-        if(plan !== 'premium'){
-            return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
+        const usage = req.usage;
+
+        if(plan !== 'premium' && usage.image_edit >= 2){
+            return res.json({success: false, message: 'Free image editing limit reached (2/month). Please upgrade to premium.'});
         }
+
         const {public_id} = await cloudinary.uploader.upload(`data:${image.mimetype};base64,${image.buffer.toString('base64')}`)
         const imageUrl = cloudinary.url(public_id, {
             transformation: [{effect: `gen_remove:${object}`}],
             resource_type: 'image'
         })
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, ${`Removed ${object} from image`}, ${imageUrl}, 'image')`;
+        
+        if(plan !== 'premium'){
+            await clerkClient.users.updateUserMetadata(userId, {
+                publicMetadata:{
+                    usage: { ...usage, image_edit: usage.image_edit + 1 }
+                }
+            })
+        }
+
         res.json({success: true, content: imageUrl})
     }   
     catch(error){
@@ -188,23 +212,24 @@ export const resumeReview = async (req, res) => {
         const userId = req.userId;
         const resume = req.file;
         const plan = req.plan;
-        console.log("Resume review started");
-        console.log("File received:", resume?.originalname);
-        if(plan !== 'premium'){
-            return res.json({success: false, message: 'This feature is only available for premium subscriptions.'});
+        const usage = req.usage;
+
+        if(plan !== 'premium' && usage.resume >= 1){
+            return res.json({success: false, message: 'Free resume review limit reached (1/month). Please upgrade to premium.'});
         }
+
         if(!resume){
             return res.json({success: false, message: "No file uploaded."});
         }
         if(resume.size > 5 * 1024 * 1024){
             return res.json({success: false, message: "Resume file size exceeds allowed size (5MB)."})
         }
-        console.log("Parsing PDF with pdf-parse...");
+        
         const parser = new PDFParse({ data: resume.buffer, CanvasFactory: CanvasFactory });
         const result = await parser.getText();
         const fullText = result.text;
-        await parser.destroy(); // Clean up resources
-        console.log("PDF parsed, text length:", fullText.length);
+        await parser.destroy(); 
+        
         if(!fullText.trim()){
             return res.json({success: false, message: "Could not extract text from PDF. Make sure it's a text-based PDF."});
         }
@@ -216,9 +241,16 @@ export const resumeReview = async (req, res) => {
         });
         
         const content = response.text;
-        console.log("Review generated successfully");
         await sql `INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review')`;
         
+        if(plan !== 'premium'){
+            await clerkClient.users.updateUserMetadata(userId, {
+                publicMetadata:{
+                    usage: { ...usage, resume: usage.resume + 1 }
+                }
+            })
+        }
+
         res.json({success: true, content})
     }   
     catch(error){

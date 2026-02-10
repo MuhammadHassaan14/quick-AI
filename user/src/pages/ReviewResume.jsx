@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import { Sparkles, FileText } from 'lucide-react'
 import axios from 'axios'
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import Markdown from 'react-markdown'
 import toast from 'react-hot-toast'
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
@@ -11,12 +11,22 @@ const ReviewResume = () => {
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
   const {getToken, isLoaded, isSignedIn} = useAuth()
+  const { user } = useUser()
+
+  const usage = user?.publicMetadata?.usage || {};
+  const resumeUsage = usage.resume || 0;
+  const plan = user?.publicMetadata?.plan || 'free';
+  const isLimitReached = plan !== 'premium' && resumeUsage >= 1;
 
   const onSubmitHandler = async (e) => {
     e.preventDefault()
     if (!isLoaded) return
     if (!isSignedIn) {
       toast.error("Please sign in first")
+      return
+    }
+    if (isLimitReached) {
+      toast.error("Free limit reached. Please upgrade to premium.")
       return
     }
     try {
@@ -51,11 +61,11 @@ const ReviewResume = () => {
         <p className='mt-6 text-sm font-medium'>Upload Resume</p>
         <input onChange={(e)=>setInput(e.target.files[0])} type='file' accept='application/pdf' className='w-full p-2 mx-3 mt-2 outline-none text-sm rounded-md border border-gray-300 text-gray-600' required/>
         <p className='mt-1 text-xs font-light text-gray-500'>Supports PDF resume only.</p>
-        <button disabled={loading} className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#00DA83] to-[#009B83] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer'>
+        <button disabled={loading || isLimitReached} className={`w-full flex justify-center items-center gap-2 text-white px-4 py-2 mt-6 text-sm rounded-lg transition-all ${isLimitReached ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-[#00DA83] to-[#009B83] cursor-pointer hover:shadow-lg'}`}>
           {
             loading ? <span className='w-4 h-4 my-1 rounded-full border-2 border-t-transparent animate-spin'></span> : <FileText className='w-5'></FileText>
           }
-          Review Resume
+          {isLimitReached ? 'Free Limit Reached' : 'Review Resume'}
         </button>
       </form>
       {/* right col */}

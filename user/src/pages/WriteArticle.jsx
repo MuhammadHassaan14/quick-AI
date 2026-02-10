@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
 import { Sparkles, Edit } from 'lucide-react'
 import axios from 'axios'
@@ -18,11 +18,22 @@ const WriteArticle = () => {
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
   const {getToken, isLoaded, isSignedIn} = useAuth()
+  const { user } = useUser()
+
+  const usage = user?.publicMetadata?.usage || {};
+  const articleUsage = usage.article || 0;
+  const plan = user?.publicMetadata?.plan || 'free';
+  const isLimitReached = plan !== 'premium' && articleUsage >= 2;
+
   const onSubmitHandler = async (e)=> {
     e.preventDefault();
     if (!isLoaded) return
     if (!isSignedIn) {
       toast.error("Please sign in first")
+      return
+    }
+    if (isLimitReached) {
+      toast.error("Free limit reached. Please upgrade to premium.")
       return
     }
     if (!input.trim()) {
@@ -68,12 +79,12 @@ const WriteArticle = () => {
           ))}
         </div>
         <br/>
-        <button disabled={loading} className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#226BFF] to-[#65ADFF] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer'>
+        <button disabled={loading || isLimitReached} className={`w-full flex justify-center items-center gap-2 text-white px-4 py-2 mt-6 text-sm rounded-lg transition-all ${isLimitReached ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-[#226BFF] to-[#65ADFF] cursor-pointer'}`}>
           {
             loading ? <span className='w-4 h-4 my-1 rounded-full border-2 border-t-transparent animate-spin'></span>
             : <Edit className='w-5'></Edit>
           }
-          Generate Article
+          {isLimitReached ? 'Free Limit Reached' : 'Generate Article'}
         </button>
       </form>
       {/* right col */}
