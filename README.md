@@ -44,7 +44,7 @@ HyperNova is a powerful, full-stack AI-driven platform that empowers users to ge
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/hypernova-ai.git
+    git clone https://github.com/MuhammadHassaan14/hypernova-ai.git
     cd hypernova-ai
     ```
 
