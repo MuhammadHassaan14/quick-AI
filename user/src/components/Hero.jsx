@@ -10,7 +10,7 @@ const Hero = () => {
         </div>
         <div className='flex flex-wrap justify-center gap-4 text-sm max-sm:text-xs'>
             <button onClick={()=> navigate('/ai')} className='bg-primary text-white px-10 py-3 rounded-lg hover:scale-102 active:scale-95 transition cursor-pointer'>Start creating now</button>
-            <a href="https://www.youtube.com/watch?v=your-demo-video-id" target="_blank" rel="noopener noreferrer" className='bg-white px-10 py-3 rounded-lg border border-gray-300 hover:scale-102 active:scale-95 transition cursor-pointer flex items-center justify-center'>Watch demo</a>
+            <a href="https://www.youtube.com/watch?v=EKOU3JWDNLI" target="_blank" rel="noopener noreferrer" className='bg-white px-10 py-3 rounded-lg border border-gray-300 hover:scale-102 active:scale-95 transition cursor-pointer flex items-center justify-center'>Watch AI news</a>
         </div>
         <div className='flex items-center gap-4 mt-8 mx-auto text-gray-600'>
             <img src={assets.user_group} alt="" className="h-8" /> Trusted by 10k+ users

@@ -83,7 +83,7 @@ const RemoveObject = () => {
 
         <p className='mt-6 text-sm font-medium'>Upload Image</p>
         <input onChange={(e)=>setInput(e.target.files[0])} type='file' accept='image/*' className='w-full p-2 mx-3 mt-2 outline-none text-sm rounded-md border border-gray-300 text-gray-600' required/>
-        <p className='mt-6 text-sm font-medium'>Describe object name to remove</p>
+        <p className='mt-6 text-sm font-medium'>Object name to remove</p>
         <textarea onChange={(e)=>setObject(e.target.value)} value={object} rows={4} className='w-full p-2 mx-3 mt-2 outline-none text-sm rounded-md border border-gray-300' placeholder='e.g. a watch, a spoon etc. (Only a single object)' required/>
         <button disabled={loading || isLimitReached} className={`w-full flex justify-center items-center gap-2 text-white px-4 py-2 mt-6 text-sm rounded-lg transition-all ${isLimitReached ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-[#417DF6] to-[#8E37EB] cursor-pointer hover:shadow-lg'}`}>
           {
