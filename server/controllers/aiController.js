@@ -72,8 +72,28 @@ export const generateImage = async (req, res) => {
         const plan = req.plan;
         const usage = req.usage;
 
+        if (!prompt) {
+            return res.json({success: false, message: 'Prompt is required.'});
+        }
+
         if(plan !== 'premium' && usage.image >= 3){
             return res.json({success: false, message: 'Free image generation limit reached (3/month). Please upgrade to premium.'});
+        }
+
+        const safetyCheck = await AI.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `Analyze the following image generation prompt for any adult content (NSFW), illegal activities, extreme violence, or highly inappropriate material. If the prompt is safe and appropriate for a general audience, respond with ONLY the word "SAFE". If it contains or requests restricted content, respond with ONLY the word "UNSAFE".
+            
+            Prompt: ${prompt}`,
+        });
+
+        const safetyResult = safetyCheck.text.trim().toUpperCase();
+        
+        if (safetyResult.includes("UNSAFE")) {
+            return res.json({
+                success: false,
+                message: "This prompt contains content that is not allowed. Please provide a safer prompt."
+            });
         }
 
         console.log("Generating image...");
@@ -174,9 +194,31 @@ export const removeImageObject = async (req, res) => {
         const userId = req.userId;
         const {object} = req.body;
         const image = req.file;
+
+        if (!object) {
+            return res.status(400).json({ success: false, message: 'Object name to remove is required.' });
+        }
+
         if (!image) {
             return res.status(400).json({ success: false, message: 'No image file provided.' });
         }
+
+        const safetyCheck = await AI.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `Analyze the following object removal instruction for any inappropriate, adult, or offensive content. Respond with ONLY "SAFE" if it is appropriate, or "UNSAFE" if it is not.
+            
+            Instruction: ${object}`,
+        });
+
+        const safetyResult = safetyCheck.text.trim().toUpperCase();
+
+        if (safetyResult.includes("UNSAFE")) {
+            return res.json({
+                success: false,
+                message: "This instruction contains content that is not allowed. Please provide a safer instruction."
+            });
+        }
+
         const plan = req.plan;
         const usage = req.usage;
 
